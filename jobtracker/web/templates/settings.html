@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Settings · Job Tracker{% endblock %}
+{% block mainclass %}narrow{% endblock %}
+{% block content %}
+<form method="post" action="/settings">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card">
+    <h1>Job alert mailbox</h1>
+    <p class="sub">LinkedIn, Indeed and Xing do not allow programs to search their sites. They do send
+      job alerts by email. Create daily alerts on those sites, then connect the mailbox that receives them.
+      It is opened read-only. Use an app password, not your main password.</p>
+    <label for="imap_host">IMAP server</label>
+    <input id="imap_host" type="text" name="imap_host" value="{{ imap_host }}" placeholder="imap.gmail.com">
+    <label for="imap_user">Mailbox address</label>
+    <input id="imap_user" type="text" name="imap_user" value="{{ imap_user }}" autocomplete="off">
+    <label for="imap_password">App password</label>
+    <input id="imap_password" type="password" name="imap_password" autocomplete="new-password"
+           placeholder="{{ 'saved, leave empty to keep it' if has_password else '' }}">
+    <p class="help">Stored encrypted. {% if has_password %}
+      <label style="display:inline;font-weight:400"><input type="checkbox" name="forget_mailbox" value="1"> Remove this mailbox</label>{% endif %}</p>
+  </div>
+  <div class="card">
+    <h2>LinkedIn guest search</h2>
+    <div class="checks">
+      <label><input type="checkbox" name="linkedin_guest" value="1" {{ "checked" if linkedin_guest }}>
+        Also search LinkedIn's public job pages directly</label>
+    </div>
+    <p class="help">LinkedIn's terms and robots.txt forbid automated access. This is your decision and your risk.
+      It can be rate limited or stop working at any time. The mailbox above is the method LinkedIn allows.</p>
+    <button class="btn" type="submit" style="margin-top:14px">Save settings</button>
+  </div>
+</form>
+{% endblock %}

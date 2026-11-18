@@ -1,0 +1,210 @@
+# Copy this file to config.yaml and adjust it. Every key is optional.
+# Missing keys fall back to the defaults in jobtracker/config.py.
+
+# Easier: let the wizard write a profile for your field and level.
+#   python -m jobtracker.init
+# It creates profiles/<name>.yaml with these same keys filled in.
+
+profile:
+  name: default
+  field: "Software, AI and data"   # free text, tells the AI which kind of employers to suggest
+  levels: [working_student, thesis]
+
+search:
+  # Search strings for sources that support searching (LinkedIn, Xing, boards with {query}).
+  # Requests grow with queries x locations, so keep this list short.
+  queries:
+    - "Werkstudent Machine Learning"
+    - "Working Student AI"
+    - "Werkstudent Data Science"
+    - "Master Thesis Machine Learning"
+  locations:
+    - "Germany"
+    - "Austria"
+
+filters:
+  # Sources that return every open job (Arbeitnow, company career APIs) are filtered by title.
+  # A title must contain at least one of these. Terms of 6 letters or fewer match whole words only.
+  title_include_any:
+    - "Machine Learning"
+    - "AI"
+    - "KI"
+    - "ML"
+    - "NLP"
+    - "Data Scien"
+    - "Deep Learning"
+    - "LLM"
+    - "Computer Vision"
+  # If this list is not empty, a title must ALSO contain one of these.
+  title_require_any:
+    - "Werkstudent"
+    - "Working Student"
+    - "Intern"
+    - "Praktik"
+    - "Thesis"
+    - "Abschlussarbeit"
+    - "Masterarbeit"
+  # Dropped from every source.
+  title_exclude_any:
+    - "Senior"
+    - "Lead"
+    - "Head of"
+    - "Principal"
+  # Career page results must mention one of these places. Leave empty to keep every location.
+  location_match:
+    - "Germany"
+    - "Deutschland"
+    - "Austria"
+    - "Österreich"
+    - "Berlin"
+    - "Munich"
+    - "München"
+    - "Hamburg"
+    - "Frankfurt"
+    - "Stuttgart"
+    - "Cologne"
+    - "Köln"
+    - "Leipzig"
+    - "Dresden"
+    - "Erfurt"
+    - "Jena"
+    - "Nuremberg"
+    - "Nürnberg"
+    - "Vienna"
+    - "Wien"
+  include_remote: true
+
+sources:
+  arbeitnow:
+    enabled: true
+    max_pages: 5            # 100 postings per page
+    filter_location: false  # Arbeitnow is mostly Germany already
+
+  arbeitsagentur:           # Bundesagentur für Arbeit, Germany only (Method C)
+    enabled: true
+    api_version: v4         # the endpoint is community documented, switch to v6 if v4 is retired
+    max_pages: 2            # 50 postings per page, per search phrase and offer type
+    max_age_days: 7
+    radius_km: 25           # only used when a location is a city
+    offer_types: []         # empty: taken from profile.levels. 1 work, 34 internship or thesis, 4 training
+    title_filter: false     # true applies filters.title_include_any to the results too
+
+  jobicy:                   # remote jobs, official API (Method C), asked at most once per hour
+    enabled: true
+    geo: [europe]           # region slugs, see https://jobicy.com/api/v2/remote-jobs?get=locations
+    count: 100
+    industry: ""            # optional category slug, e.g. data-science
+
+  linkedin:
+    enabled: true
+    email_alerts: true      # compliant method, needs the IMAP variables (see README)
+    guest_search: false     # opt in to LinkedIn's logged-out search, read the README first
+    max_pages: 2
+    max_age_days: 7
+
+  indeed:
+    enabled: true
+    email_alerts: true      # the working method for Indeed
+    public_search: false    # Method A. Indeed usually refuses it, then the source shows as blocked
+    domain: "de.indeed.com"
+
+  xing:
+    enabled: true
+    email_alerts: true
+    public_search: false    # Xing robots.txt forbids its search pages (seen 2026-11), so this is off
+
+  working_student:
+    enabled: true
+    arbeitnow_filter: true  # student roles from the Arbeitnow API
+    max_pages: 8
+    # Extra boards. Open the board in your browser, run a search, paste the result URL here.
+    # {query} and {location} are replaced by the search values above.
+    # link_pattern is an optional regular expression that job links on that board match.
+    boards: []
+    # boards:
+    #   - name: "Example board"
+    #     url: "https://jobs.example.com/search?q={query}&where={location}"
+    #     link_pattern: "^/job/[a-z0-9-]+$"
+
+  career_pages:
+    enabled: true
+    max_pages_per_company: 3
+    companies_per_run: 50   # target per run, topped up with new AI suggestions when fewer are due
+    revisit_days: 7         # the same company is not crawled again within this many days
+    max_failures: 3         # a company that fails this often in a row is retired from the pool
+    # ats + slug uses the public API of the applicant tracking system (most reliable).
+    # A plain url is fetched as HTML. A wrong slug only logs an error for that company.
+    # Slugs change when a company switches systems, so check them once in your browser:
+    #   greenhouse       https://boards.greenhouse.io/<slug>
+    #   lever            https://jobs.lever.co/<slug>        (lever-eu for jobs.eu.lever.co)
+    #   ashby            https://jobs.ashbyhq.com/<slug>
+    #   smartrecruiters  https://jobs.smartrecruiters.com/<slug>
+    #   personio         https://<slug>.jobs.personio.de
+    #   recruitee        https://<slug>.recruitee.com
+    #   workable         https://apply.workable.com/<slug>
+    companies:
+      - {name: "Celonis", ats: greenhouse, slug: celonis}
+      - {name: "N26", ats: greenhouse, slug: n26}
+      - {name: "GetYourGuide", ats: greenhouse, slug: getyourguide}
+      - {name: "Helsing", ats: greenhouse, slug: helsing}
+      - {name: "Databricks", ats: greenhouse, slug: databricks}
+      - {name: "Datadog", ats: greenhouse, slug: datadog}
+      - {name: "Stripe", ats: greenhouse, slug: stripe}
+      - {name: "Cloudflare", ats: greenhouse, slug: cloudflare}
+      - {name: "DeepL", ats: ashby, slug: DeepL}
+      - {name: "Aleph Alpha", ats: ashby, slug: AlephAlpha}
+      # - {name: "Some company", url: "https://example.com/careers"}
+
+email:
+  # Names of the environment variables that hold the mailbox login for job alert emails.
+  host_env: JOBTRACKER_IMAP_HOST
+  user_env: JOBTRACKER_IMAP_USER
+  password_env: JOBTRACKER_IMAP_PASSWORD
+  folder: INBOX
+  days_back: 3
+
+ai:
+  enabled: true
+  provider: gemini            # gemini | groq
+  model: gemini-3.8-flash     # for groq use e.g. openai/gpt-oss-120b
+  api_key_env: GEMINI_API_KEY # for groq use GROQ_API_KEY
+  max_calls_per_run: 8        # hard cap on AI requests per run
+  cache_ttl_days: 7           # the company list is reused for a week
+  discover_companies: true
+  max_companies: 60             # most new companies requested from the AI in one run
+  use_search_grounding: false # Gemini only, lets the model use Google Search for the company list
+  pages_per_batch: 10         # listing pages sent in one extraction request
+
+browser:
+  # Method B. Renders pages whose static HTML had no job data (JavaScript career pages).
+  # Needs:  pip install playwright   and then   playwright install chromium
+  enabled: false
+  max_pages_per_run: 10
+  timeout: 30
+  channel: ""               # "chrome" uses an installed Google Chrome instead of the download
+
+recheck:
+  enabled: true
+  max_per_run: 300
+  unreachable_threshold: 3    # failed runs in a row before an unreachable link is marked
+  preserve_applied: true      # true keeps "applied" even when the posting disappears
+  # closed_markers: [...]     # phrases that mean a posting is closed, see jobtracker/config.py
+
+scraping:
+  download_delay: 2.0
+  concurrency_per_domain: 2
+  timeout: 30
+  retry_times: 3
+  backoff_base: 2.0           # seconds, doubles with every retry
+  backoff_max: 60.0
+  # user_agent: "Mozilla/5.0 ..."
+
+paths:
+  db: data/jobs.db
+  csv: data/jobs.csv
+  log: logs/jobtracker.log
+  ai_cache: data/ai_cache.json
+
+logging:
+  level: INFO
+  scrapy_level: WARNING

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Jobs · Job Tracker{% endblock %}
+{% block head %}{% if running %}<meta http-equiv="refresh" content="10">{% endif %}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div class="grow">
+    <h1>Your jobs</h1>
+    <p class="sub" style="margin:0">{{ cfg.profile.field }} · {{ cfg.search.locations | join(", ") }} ·
+      <a href="/profile">change search</a></p>
+  </div>
+  <form method="post" action="/run" style="flex:none">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn" type="submit" {{ "disabled" if running }}>{{ "Searching…" if running else "Search now" }}</button>
+  </form>
+</div>
+
+<div class="stats">
+  <div class="stat"><b>{{ total }}</b><span>postings collected</span></div>
+  <div class="stat"><b>{{ counts.get("not applied", 0) }}</b><span>not applied</span></div>
+  <div class="stat"><b>{{ counts.get("applied", 0) }}</b><span>applied</span></div>
+  <div class="stat"><b>{{ counts.get("no longer available", 0) }}</b><span>no longer available</span></div>
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <form method="get" action="/dashboard">
+      <input class="grow" type="text" name="q" value="{{ q }}" placeholder="Search title, company or link" aria-label="Search">
+      <select name="status" aria-label="Status filter">
+        <option value="">All statuses</option>
+        {% for s in statuses %}<option value="{{ s }}" {{ "selected" if s == status }}>{{ s }}</option>{% endfor %}
+      </select>
+      <button class="btn light" type="submit">Filter</button>
+    </form>
+    <div class="downloads">
+      {% set qs = "?status=" ~ (status | urlencode) ~ "&q=" ~ (q | urlencode) %}
+      <a class="btn light" href="/export.csv{{ qs }}">CSV</a>
+      <a class="btn light" href="/export.xlsx{{ qs }}">Excel</a>
+      <a class="btn light" href="/export.pdf{{ qs }}">PDF</a>
+    </div>
+  </div>
+  {% if jobs %}
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Position</th><th class="hide">Company</th><th>Published</th><th class="hide">Source</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for job in jobs %}
+      <tr class="{{ 'gone' if job.status == 'no longer available' }}">
+        <td><a href="{{ job.link }}" target="_blank" rel="noopener noreferrer">{{ job.position }}</a>
+            {% if job.location %}<br><span class="small">{{ job.location }}</span>{% endif %}</td>
+        <td class="hide">{{ job.company }}</td>
+        <td class="small">{{ job.date_published or "unknown" }}</td>
+        <td class="small hide">{{ job.source.replace("_", " ") }}</td>
+        <td>
+          <form method="post" action="/jobs/status">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <input type="hidden" name="link" value="{{ job.link }}">
+            <input type="hidden" name="back" value="/dashboard{{ qs }}">
+            <select name="status" aria-label="Status of {{ job.position }}" onchange="this.form.submit()">
+              {% for s in statuses %}<option value="{{ s }}" {{ "selected" if s == job.status }}>{{ s }}</option>{% endfor %}
+            </select>
+            <noscript><button class="btn light" type="submit">Save</button></noscript>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if jobs | length == 500 %}<p class="small">Showing the newest 500. The downloads contain everything.</p>{% endif %}
+  {% else %}
+  <div class="empty">
+    {% if total %}No posting matches this filter.
+    {% elif running %}The first search is running. This page refreshes on its own.
+    {% else %}Nothing collected yet. Press “Search now” to start, or wait for the daily run at 04:00.{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% if sources %}
+<div class="card">
+  <h2>Source performance <span class="small">· last run {{ run.finished_at[:16].replace("T", " ") }} UTC</span></h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Source</th><th>Result</th><th>New</th><th>Already known</th><th class="hide">Method</th><th>What this means</th></tr></thead>
+    <tbody>
+    {% for s in sources %}
+      <tr><td>{{ s.label }}</td>
+          <td><span class="badge {{ s.status }}">{{ {"ok": "Completed", "partial": "Partial", "failed": "Failed",
+              "skipped": "Not set up", "blocked": "Not allowed"}.get(s.status, s.status) }}</span></td>
+          <td>{{ s.new }}</td><td>{{ s.duplicate }}</td>
+          <td class="small hide">{{ s.method or "" }}</td>
+          <td class="small">{{ s.note }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

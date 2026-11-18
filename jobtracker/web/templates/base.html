@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Job Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">Job Tracker</a>
+  {% if user %}
+  <nav>
+    <a href="/dashboard">Jobs</a>
+    <a href="/profile">My search</a>
+    <a href="/settings">Settings</a>
+  </nav>
+  <span class="who">{{ user.name or user.email }}</span>
+  <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn link" type="submit">Log out</button></form>
+  {% endif %}
+</header>
+<main class="{% block mainclass %}{% endblock %}">
+  {% if flash %}<div class="alert" role="status">{{ flash }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,43 @@
+:root { --ink:#16202e; --muted:#5d6b7e; --line:#dfe4ec; --bg:#f4f6f9; --card:#fff; --brand:#1f3a5f; --accent:#2f6fde;
+        --ok:#1d7a4f; --warn:#a15c00; --bad:#b3261e; --idle:#5d6b7e; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+header.top { background:var(--brand); color:#fff; padding:12px 24px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+header.top .brand { font-weight:700; font-size:17px; color:#fff; }
+header.top nav { display:flex; gap:16px; flex:1; } header.top nav a { color:#d5e0f0; }
+header.top form { margin:0; } header.top .who { color:#d5e0f0; font-size:13px; }
+main { max-width:1180px; margin:24px auto; padding:0 20px; }
+main.narrow { max-width:460px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 22px; margin-bottom:18px; }
+h1 { font-size:22px; margin:0 0 6px; } h2 { font-size:16px; margin:0 0 12px; }
+p.sub { color:var(--muted); margin:0 0 16px; }
+label { display:block; font-weight:600; margin:14px 0 4px; }
+.help { color:var(--muted); font-size:13px; font-weight:400; margin:2px 0 0; }
+input[type=text],input[type=email],input[type=password],select { width:100%; padding:9px 11px; border:1px solid #c5ccd8; border-radius:7px; font:inherit; background:#fff; }
+input:focus,select:focus,button:focus-visible,a:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.btn { display:inline-block; padding:9px 16px; border-radius:7px; border:1px solid var(--brand); background:var(--brand); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+.btn:hover { background:#16304f; text-decoration:none; }
+.btn.light { background:#fff; color:var(--brand); border-color:#c5ccd8; } .btn.light:hover { background:#eef2f7; }
+.btn.block { display:block; width:100%; text-align:center; margin-top:10px; }
+.btn.link { background:none; border:none; color:#d5e0f0; padding:0; font-weight:400; }
+.divider { text-align:center; color:var(--muted); font-size:13px; margin:18px 0 6px; }
+.alert { padding:10px 14px; border-radius:7px; margin-bottom:16px; background:#e8f0fe; border:1px solid #c3d6fb; }
+.alert.error { background:#fdecea; border-color:#f5c2be; color:#7a1a14; }
+.checks label { font-weight:400; margin:6px 0; display:flex; gap:8px; align-items:flex-start; } .checks input { margin-top:4px; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px; }
+.stat { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+.stat b { display:block; font-size:24px; } .stat span { color:var(--muted); font-size:13px; }
+.toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+.toolbar .grow { flex:1; min-width:180px; } .toolbar select { width:auto; } .toolbar form { display:flex; gap:10px; flex:1; flex-wrap:wrap; margin:0; }
+.tablewrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); white-space:nowrap; }
+td.small,span.small { color:var(--muted); font-size:13px; } td form { margin:0; } td select { padding:5px 8px; width:auto; }
+.badge { display:inline-block; padding:2px 9px; border-radius:99px; font-size:12px; font-weight:600; color:#fff; background:var(--idle); white-space:nowrap; }
+.badge.ok { background:var(--ok); } .badge.partial { background:var(--warn); } .badge.failed { background:var(--bad); }
+.badge.skipped,.badge.blocked { background:var(--idle); }
+tr.gone td { color:var(--muted); } tr.gone a { color:var(--muted); text-decoration:line-through; }
+.empty { text-align:center; color:var(--muted); padding:30px 10px; }
+.downloads { display:flex; gap:8px; flex-wrap:wrap; }
+@media (max-width:640px) { th.hide,td.hide { display:none; } main { padding:0 12px; } }

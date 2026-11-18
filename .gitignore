@@ -1,0 +1,21 @@
+﻿.venv/
+.venv313/
+venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+*.log
+.pytest_cache/
+.mypy_cache/
+*.db
+*.sqlite3
+data/
+exports/
+# Environment variables and secrets
+.env
+.env.*
+!.env.example

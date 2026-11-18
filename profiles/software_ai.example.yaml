@@ -1,0 +1,125 @@
+# Job tracker profile for "software_ai" (Software, AI and data).
+# Created by `python -m jobtracker.init`. Edit any list freely.
+# Keys that are missing here use the defaults from jobtracker/config.py
+# (see config.example.yaml for every available key).
+#
+# Run it with:  python -m jobtracker.run --profile <name>  (after copying this file to profiles/<name>.yaml)
+
+profile:
+  name: software_ai
+  field: Software, AI and data
+  levels:
+  - working_student
+  - thesis
+search:
+  queries:
+  - Werkstudent Software Engineer
+  - Abschlussarbeit Software Engineer
+  - Werkstudent Machine Learning
+  - Abschlussarbeit Machine Learning
+  - Werkstudent Data Science
+  - Abschlussarbeit Data Science
+  locations:
+  - Germany
+filters:
+  title_include_any:
+  - Software
+  - Developer
+  - Entwickler
+  - Backend
+  - Frontend
+  - Full Stack
+  - Fullstack
+  - Machine Learning
+  - AI
+  - KI
+  - ML
+  - LLM
+  - NLP
+  - Data Scien
+  - Data Engineer
+  - Data Analy
+  - Deep Learning
+  - Computer Vision
+  - DevOps
+  - Cloud
+  - Python
+  - Informatik
+  title_require_any:
+  - Werkstudent
+  - Working Student
+  - Studentische
+  - Thesis
+  - Abschlussarbeit
+  - Masterarbeit
+  - Bachelorarbeit
+  title_exclude_any:
+  - Senior
+  - Lead
+  - Head of
+  - Principal
+  - Director
+  - Leiter
+  location_match:
+  - Germany
+  - Deutschland
+  - Berlin
+  - Munich
+  - München
+  - Hamburg
+  - Frankfurt
+  - Stuttgart
+  - Cologne
+  - Köln
+  - Düsseldorf
+  - Leipzig
+  - Dresden
+  - Hannover
+  - Nuremberg
+  - Nürnberg
+  - Erfurt
+  - Jena
+  - Karlsruhe
+  - Bremen
+  include_remote: true
+sources:
+  career_pages:
+    companies:
+    - name: Celonis
+      ats: greenhouse
+      slug: celonis
+    - name: N26
+      ats: greenhouse
+      slug: n26
+    - name: GetYourGuide
+      ats: greenhouse
+      slug: getyourguide
+    - name: Helsing
+      ats: greenhouse
+      slug: helsing
+    - name: Databricks
+      ats: greenhouse
+      slug: databricks
+    - name: Datadog
+      ats: greenhouse
+      slug: datadog
+    - name: Stripe
+      ats: greenhouse
+      slug: stripe
+    - name: Cloudflare
+      ats: greenhouse
+      slug: cloudflare
+    - name: Mistral AI
+      ats: lever
+      slug: mistral
+    - name: DeepL
+      ats: ashby
+      slug: DeepL
+    - name: Aleph Alpha
+      ats: ashby
+      slug: AlephAlpha
+paths:
+  db: ../data/software_ai/jobs.db
+  csv: ../data/software_ai/jobs.csv
+  log: ../logs/software_ai.log
+  ai_cache: ../data/software_ai/ai_cache.json

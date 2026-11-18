@@ -1,0 +1,95 @@
+# Job tracker profile for "mechanical" (Mechanical engineering).
+# Created by `python -m jobtracker.init`. Edit any list freely.
+# Keys that are missing here use the defaults from jobtracker/config.py
+# (see config.example.yaml for every available key).
+#
+# Run it with:  python -m jobtracker.run --profile <name>  (after copying this file to profiles/<name>.yaml)
+
+profile:
+  name: mechanical
+  field: Mechanical engineering
+  levels:
+  - working_student
+  - thesis
+search:
+  queries:
+  - Werkstudent Maschinenbau
+  - Abschlussarbeit Maschinenbau
+  - Werkstudent Mechanical Engineer
+  - Abschlussarbeit Mechanical Engineer
+  - Werkstudent Konstruktion
+  - Abschlussarbeit Konstruktion
+  locations:
+  - Germany
+filters:
+  title_include_any:
+  - Mechanical
+  - Maschinenbau
+  - Konstruktion
+  - Konstrukteur
+  - CAD
+  - Mechanik
+  - Mechatronik
+  - Fertigung
+  - Manufacturing
+  - Produktionstechnik
+  - Simulation
+  - FEM
+  - CFD
+  - Thermodynam
+  - Fahrzeugtechnik
+  - Automotive
+  - Entwicklungsingenieur
+  - Design Engineer
+  - Verfahrenstechnik
+  - Werkstoff
+  title_require_any:
+  - Werkstudent
+  - Working Student
+  - Studentische
+  - Thesis
+  - Abschlussarbeit
+  - Masterarbeit
+  - Bachelorarbeit
+  title_exclude_any:
+  - Senior
+  - Lead
+  - Head of
+  - Principal
+  - Director
+  - Leiter
+  location_match:
+  - Germany
+  - Deutschland
+  - Berlin
+  - Munich
+  - München
+  - Hamburg
+  - Frankfurt
+  - Stuttgart
+  - Cologne
+  - Köln
+  - Düsseldorf
+  - Leipzig
+  - Dresden
+  - Hannover
+  - Nuremberg
+  - Nürnberg
+  - Erfurt
+  - Jena
+  - Karlsruhe
+  - Bremen
+  include_remote: true
+sources:
+  career_pages:
+    companies:
+    - name: Bosch
+      ats: smartrecruiters
+      slug: BoschGroup
+      params:
+        country: de
+paths:
+  db: ../data/mechanical/jobs.db
+  csv: ../data/mechanical/jobs.csv
+  log: ../logs/mechanical.log
+  ai_cache: ../data/mechanical/ai_cache.json

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}My search · Job Tracker{% endblock %}
+{% block mainclass %}narrow{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>What are you looking for?</h1>
+  <p class="sub">Four answers decide which jobs are collected for you. You can change them at any time.</p>
+  <form method="post" action="/profile">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+
+    <label for="field">1. Field</label>
+    <select id="field" name="field">
+      {% for key, field in fields.items() %}
+      <option value="{{ key }}" {{ "selected" if current.field == key }}>{{ field.label }}</option>
+      {% endfor %}
+      <option value="custom" {{ "selected" if current.field == "custom" }}>Something else (describe it below)</option>
+    </select>
+
+    <label>2. Kind of position</label>
+    <div class="checks">
+      {% for key, level in levels.items() %}
+      <label><input type="checkbox" name="levels" value="{{ key }}" {{ "checked" if key in current.levels }}> {{ level.label }}</label>
+      {% endfor %}
+    </div>
+
+    <label for="locations">3. Where</label>
+    <input id="locations" type="text" name="locations" value="{{ current.locations }}" required>
+    <p class="help">Countries or cities, separated by commas. Example: Germany, Austria</p>
+
+    <label for="keywords">4. Your own keywords <span class="help">(optional)</span></label>
+    <input id="keywords" type="text" name="keywords" value="{{ current.keywords }}">
+    <p class="help">Words that appear in the job titles you want. They are added to the field you chose.
+      For “Something else” they are required, unless you describe the jobs below.</p>
+
+    <label for="describe">Or describe the jobs in your own words <span class="help">(only for “Something else”)</span></label>
+    <input id="describe" type="text" name="describe" placeholder="e.g. biotech lab work, cell culture, quality assurance">
+    <p class="help">{% if ai_ready %}We turn your description into search phrases and keywords.
+      {% else %}Not available right now, please type keywords above instead.{% endif %}</p>
+
+    <button class="btn block" type="submit">Save my search</button>
+  </form>
+</div>
+{% if cfg %}
+<div class="card">
+  <h2>Your current search</h2>
+  <p class="small"><b>Search phrases:</b> {{ cfg.search.queries | join(", ") }}</p>
+  <p class="small"><b>Titles must contain one of:</b> {{ cfg.filters.title_include_any | join(", ") }}</p>
+  {% if cfg.filters.title_require_any %}<p class="small"><b>and one of:</b> {{ cfg.filters.title_require_any | join(", ") }}</p>{% endif %}
+  {% if cfg.filters.title_exclude_any %}<p class="small"><b>Left out:</b> {{ cfg.filters.title_exclude_any | join(", ") }}</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

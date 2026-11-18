@@ -1,0 +1,58 @@
+name: Daily job search
+
+on:
+  schedule:
+    # GitHub cron is always UTC. 04:00 in Berlin is 03:00 UTC in winter (CET)
+    # and 02:00 UTC in summer (CEST). Change the hour to match your local time.
+    - cron: "0 4 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: jobtracker
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run tracker
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          JOBTRACKER_IMAP_HOST: ${{ secrets.JOBTRACKER_IMAP_HOST }}
+          JOBTRACKER_IMAP_USER: ${{ secrets.JOBTRACKER_IMAP_USER }}
+          JOBTRACKER_IMAP_PASSWORD: ${{ secrets.JOBTRACKER_IMAP_PASSWORD }}
+        run: |
+          # Runs every committed profile in profiles/. Falls back to config.yaml.
+          python -m jobtracker.run --all-profiles
+
+      # The runner is thrown away after each run, so the state is committed back to the repo.
+      - name: Commit updated state
+        if: always()
+        run: |
+          git config user.name "jobtracker-bot"
+          git config user.email "jobtracker-bot@users.noreply.github.com"
+          # One folder per profile under data/. Force-add because data files are gitignored.
+          find data -type f \( -name "jobs.db" -o -name "jobs.csv" -o -name "ai_cache.json" \) -exec git add -f {} +
+          git diff --cached --quiet || git commit -m "Update job tracker state"
+          git push
+
+      - name: Keep the log for a week
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobtracker-log
+          path: logs/
+          retention-days: 7
