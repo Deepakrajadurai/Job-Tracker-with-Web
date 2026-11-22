@@ -43,7 +43,7 @@ def to_xlsx(jobs) -> bytes:
         link = sheet.cell(row=sheet.max_row, column=1)
         link.hyperlink = job["link"]
         link.font = Font(color="1155CC", underline="single")
-    for column, width in zip("ABCDEF", (60, 50, 20, 20, 28, 18)):
+    for column, width in zip("ABCDEF", (60, 50, 20, 20, 28, 18), strict=True):
         sheet.column_dimensions[column].width = width
     for row in sheet.iter_rows(min_row=2, max_col=2):
         for cell in row:

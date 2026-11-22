@@ -13,7 +13,8 @@ from .base import SourceSpider
 
 BASE = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/{version}/jobs"
 DETAIL = "https://www.arbeitsagentur.de/jobsuche/jobdetail/{refnr}"
-API_KEY = "jobboerse-jobsuche"       # public client id of the agency's own web search
+API_KEY = "jobboerse-jobsuche"
+RETIRED_VERSIONS = {"v4", "v5"}       # public client id of the agency's own web search
 GERMANY = {"germany", "deutschland", "de"}
 OTHER_COUNTRIES = {name for name in REGIONS if name != "germany"} | {"österreich", "schweiz", "poland", "polen",
                                                                       "france", "frankreich", "europe", "eu"}
@@ -43,19 +44,30 @@ def search_places(locations: list[str]) -> list[str]:
     return places
 
 
+def _place(item: dict) -> dict:
+    """v6: stellenlokationen[0].adresse, older versions: arbeitsort."""
+    locations = item.get("stellenlokationen")
+    if isinstance(locations, list) and locations and isinstance(locations[0], dict):
+        return locations[0].get("adresse") or {}
+    return item.get("arbeitsort") or {}
+
+
 def parse_arbeitsagentur(data: dict) -> list[dict]:
+    """Accepts the live v6 response (ergebnisliste) and the older documented one (stellenangebote)."""
     jobs = []
-    for item in data.get("stellenangebote") or []:
-        refnr = item.get("refnr") or item.get("referenznummer")
-        title = item.get("titel") or item.get("stellenangebotsTitel") or item.get("beruf")
+    for item in data.get("ergebnisliste") or data.get("stellenangebote") or []:
+        refnr = item.get("referenznummer") or item.get("refnr")
+        title = item.get("stellenangebotsTitel") or item.get("titel") or item.get("beruf")
         if not refnr or not title:
             continue
-        place = item.get("arbeitsort") or {}
+        place = _place(item)
+        period = item.get("veroeffentlichungszeitraum") or {}
         jobs.append({
             "link": DETAIL.format(refnr=refnr),
             "position": title,
-            "date": item.get("aktuelleVeroeffentlichungsdatum") or item.get("modifikationsTimestamp") or "",
-            "company": item.get("arbeitgeber") or "",
+            "date": (period.get("von") if isinstance(period, dict) else "")
+                    or item.get("aktuelleVeroeffentlichungsdatum") or item.get("modifikationsTimestamp") or "",
+            "company": item.get("firma") or item.get("arbeitgeber") or "",
             "location": ", ".join(v for v in (place.get("ort"), place.get("region")) if v),
         })
     return jobs
@@ -63,6 +75,7 @@ def parse_arbeitsagentur(data: dict) -> list[dict]:
 
 class ArbeitsagenturSpider(SourceSpider):
     name = "arbeitsagentur"
+    refusal_is_blocked = False      # a 403 from this API means the endpoint changed, not a refusal
 
     def url(self, query: str, place: str, offer_type: int, page: int) -> str:
         params = {"was": query, "angebotsart": offer_type, "page": page,
@@ -70,7 +83,10 @@ class ArbeitsagenturSpider(SourceSpider):
                   "veroeffentlichtseit": int(self.scfg.get("max_age_days", 7))}
         if place:
             params.update(wo=place, umkreis=int(self.scfg.get("radius_km", 25)))
-        return f"{BASE.format(version=self.scfg.get('api_version', 'v4'))}?{urlencode(params)}"
+        version = str(self.scfg.get("api_version") or "v6")
+        if version in RETIRED_VERSIONS:
+            version = "v6"          # v4 paths answer HTTP 403 since 2026
+        return f"{BASE.format(version=version)}?{urlencode(params)}"
 
     def request(self, query, place, offer_type, page):
         return self.req(self.url(query, place, offer_type, page), self.parse,

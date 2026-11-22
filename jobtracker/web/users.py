@@ -118,6 +118,10 @@ class UserDB:
         self.conn.commit()
         return user
 
+    def providers_for(self, user_id: int) -> list[str]:
+        return [r["provider"] for r in self.conn.execute(
+            "SELECT provider FROM identities WHERE user_id = ? ORDER BY provider", (user_id,))]
+
     # -------------------------------------------------------------- settings
     def set_setting(self, user_id: int, key: str, value: str) -> None:
         if value == "":

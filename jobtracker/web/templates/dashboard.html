@@ -85,8 +85,7 @@
     <tbody>
     {% for s in sources %}
       <tr><td>{{ s.label }}</td>
-          <td><span class="badge {{ s.status }}">{{ {"ok": "Completed", "partial": "Partial", "failed": "Failed",
-              "skipped": "Not set up", "blocked": "Not allowed"}.get(s.status, s.status) }}</span></td>
+          <td><span class="badge {{ s.status }}">{{ s.badge }}</span></td>
           <td>{{ s.new }}</td><td>{{ s.duplicate }}</td>
           <td class="small hide">{{ s.method or "" }}</td>
           <td class="small">{{ s.note }}</td></tr>

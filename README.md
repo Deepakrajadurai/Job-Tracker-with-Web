@@ -58,6 +58,47 @@ that the email address is verified.
   page. Add these, plus a privacy notice, before opening the site to the public. Logins lock for
   15 minutes after 5 wrong passwords.
 
+## Running on a home server (Docker, Tailscale, Nextcloud)
+
+`docker-compose.yml` runs the web app and the daily collection in one container. The data
+lives outside the container under `/mnt/hdd/jobtracker` (change with `JOBTRACKER_DATA_DIR`).
+
+```bash
+bash scripts/deploy-home-server.sh      # first time: creates /mnt/hdd/jobtracker/.env, then stops
+nano /mnt/hdd/jobtracker/.env           # fill in keys, see below
+bash scripts/deploy-home-server.sh      # builds and starts the container
+sudo tailscale serve --bg --https=443 http://127.0.0.1:8000
+tailscale serve status                  # prints https://home-server.<tailnet>.ts.net
+```
+
+The app only listens on `127.0.0.1:8000`. `tailscale serve` publishes it to your tailnet with a
+real HTTPS certificate, which Google sign-in needs. HTTPS must be enabled once in the Tailscale
+admin console under DNS. Put the printed address into `JOBTRACKER_BASE_URL` and restart with
+`docker compose up -d`. Friends who share the server need port 443 in your Tailscale access rules.
+
+Each user can copy their results into their own Nextcloud under Settings. After every run the
+tracker uploads `jobs.csv` and `jobs.xlsx` to the chosen folder with an app password. The copy
+goes one way. Statuses are changed in the web interface.
+
+The secrets file lives next to the data in `/mnt/hdd/jobtracker/.env`, not in the code folder,
+so updates never touch it. The whole state is the folder `/mnt/hdd/jobtracker`. The app writes a
+consistent copy of every database to `data/backups/` each night before the daily search (newest 14
+kept), and `python -m jobtracker.backup` does it by hand. Copy that folder to a second disk or
+another machine from time to time.
+
+## Updates (CI/CD)
+
+`.github/workflows/pipeline.yml` tests every push and pull request on GitHub's machines (ruff,
+pytest, Docker build). A push to `main` then deploys to the home server through a self-hosted
+GitHub Actions runner installed there: `scripts/ci-deploy.sh` backs up the databases, builds the
+new image, starts it, checks `/healthz` for the new version and rolls back to the previous image
+if the check fails. Dependabot opens weekly pull requests for package updates.
+
+Use the self-hosted runner only with a private repository. The setup guide has the steps.
+
+Sign-in button logos are not shipped. Put the official files into `jobtracker/web/static/logos/`
+(see the README there).
+
 ## Profiles: one per person and field
 
 The tool assumes no field. Each person describes what they want once and gets a **profile**:
@@ -208,6 +249,10 @@ Rules the store enforces:
 | `jobtracker/availability.py` | Decides whether a posting is still online |
 | `jobtracker/extract.py` | JSON-LD and link extraction for listing pages |
 | `jobtracker/exports.py` | CSV, Excel and PDF downloads |
+| `jobtracker/nextcloud.py` | Copy of the results into Nextcloud (WebDAV) |
+| `Dockerfile`, `docker-compose.yml`, `scripts/deploy-home-server.sh` | Home server deployment |
+| `.github/workflows/pipeline.yml`, `scripts/ci-deploy.sh` | CI/CD: tests, deploy, health check, rollback |
+| `jobtracker/backup.py` | Database backups |
 | `jobtracker/web/` | Web interface: accounts, SSO, dashboard, settings, daily scheduler |
 | `jobtracker/ai.py` | Gemini / Groq client with cache, batching and call cap |
 | `jobtracker/email_alerts.py` | IMAP reader for LinkedIn, Indeed and Xing job alerts |
@@ -223,7 +268,7 @@ Rules the store enforces:
 | `jobtracker/spiders/linkedin.py` | LinkedIn logged-out search (opt in) |
 | `jobtracker/spiders/xing.py` | Xing public search page |
 | `jobtracker/spiders/recheck.py` | Re-check of stored links |
-| `tests/` | 121 tests, all network calls mocked |
+| `tests/` | 139 tests, all network calls mocked |
 | `profiles/` | One YAML file per person, plus two examples |
 | `config.example.yaml` | Every available key with comments |
 | `.github/workflows/daily.yml` | GitHub Actions schedule |
@@ -411,7 +456,7 @@ publication date, so dates from this spider are usually empty.
 
 **Bundesagentur für Arbeit.** The Jobsuche endpoint is the one the agency's own website uses.
 It is documented by the community, not offered by the agency as a supported developer API, so
-it can change or be closed without notice. The parser accepts the field names of both known
+it can change or be closed without notice. The v4 path was retired in 2026 and answers HTTP 403, so v6 is used (a profile that still says v4 is moved to v6 automatically). The parser accepts the field names of both known
 versions (`api_version` v4 and v6). Only German locations are searched.
 
 **Jobicy.** Remote jobs only. Jobicy asks for at most one automated request per hour and for

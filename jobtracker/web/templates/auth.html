@@ -9,7 +9,9 @@
   {% if error %}<div class="alert error" role="alert">{{ error }}</div>{% endif %}
 
   {% for key, label in providers.items() %}
-  <a class="btn light block" href="/auth/{{ key }}">Continue with {{ label }}</a>
+  <a class="btn light block sso" href="/auth/{{ key }}">
+    {% if logos.get(key) %}<img src="{{ logos[key] }}" alt="" width="20" height="20">{% endif %}
+    <span>Continue with {{ label }}</span></a>
   {% endfor %}
   {% if providers %}<div class="divider">or use your email</div>{% endif %}
 

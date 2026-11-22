@@ -24,6 +24,7 @@ def parse_jobicy(data: dict) -> list[dict]:
 
 class JobicySpider(SourceSpider):
     name = "jobicy"
+    refusal_is_blocked = False
 
     def stamp(self) -> Path:
         return Path(self.cfg["paths"]["db"]).parent / "jobicy_last_call.txt"
@@ -34,8 +35,9 @@ class JobicySpider(SourceSpider):
         except (OSError, ValueError):
             age = MIN_SECONDS_BETWEEN_CALLS
         if age < MIN_SECONDS_BETWEEN_CALLS:
-            self.log.info("Jobicy was queried less than an hour ago, skipped this time",
-                          extra={"source": self.name})
+            minutes = int((MIN_SECONDS_BETWEEN_CALLS - age) / 60) + 1
+            self.skip(f"Jobicy allows one request per hour. Asked {int(age / 60)} minutes ago, "
+                      f"so it runs again in {minutes} minutes.")
             return
         self.stamp().parent.mkdir(parents=True, exist_ok=True)
         self.stamp().write_text(str(time.time()))

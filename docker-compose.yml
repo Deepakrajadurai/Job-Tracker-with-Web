@@ -1,0 +1,48 @@
+# Job Tracker on the home server.
+#
+#   First time:  bash scripts/deploy-home-server.sh   (creates /mnt/hdd/jobtracker/.env)
+#   Updates:     automatic through the pipeline (scripts/ci-deploy.sh), or run the script again
+#   HTTPS:       sudo tailscale serve --bg --https=443 http://127.0.0.1:8000
+#
+# The app listens on 127.0.0.1:8000 only. Tailscale serve publishes it to your tailnet with HTTPS,
+# so nothing is reachable from the internet or the local network directly.
+name: jobtracker            # same project name from any folder, so updates replace the running app
+
+services:
+  jobtracker:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: jobtracker:latest
+    container_name: jobtracker
+    restart: unless-stopped
+    # Host networking: the container reaches Nextcloud at its Tailscale address exactly like the
+    # host does, and Docker does not open any port around the UFW firewall.
+    network_mode: host
+    user: "${JOBTRACKER_UID:-1000}:${JOBTRACKER_GID:-1000}"
+    # Secrets live next to the data, outside the code folder, so a new checkout never loses them.
+    env_file: ${JOBTRACKER_ENV_FILE:-/mnt/hdd/jobtracker/.env}
+    environment:
+      JOBTRACKER_HOME: /srv/jobtracker
+      JOBTRACKER_HOST: 127.0.0.1
+      JOBTRACKER_PORT: "8000"
+      JOBTRACKER_COOKIE_SECURE: "1"
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - ${JOBTRACKER_DATA_DIR:-/mnt/hdd/jobtracker}/data:/srv/jobtracker/data
+      - ${JOBTRACKER_DATA_DIR:-/mnt/hdd/jobtracker}/profiles:/srv/jobtracker/profiles
+      - ${JOBTRACKER_DATA_DIR:-/mnt/hdd/jobtracker}/logs:/srv/jobtracker/logs
+
+  # Optional public access through Cloudflare Tunnel (see the setup guide, Hosting online).
+  # Starts only when COMPOSE_PROFILES=public is set in the secrets file, together with TUNNEL_TOKEN.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: jobtracker-tunnel
+    profiles: ["public"]
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate run
+    env_file: ${JOBTRACKER_ENV_FILE:-/mnt/hdd/jobtracker/.env}
+    depends_on:
+      - jobtracker

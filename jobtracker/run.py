@@ -15,7 +15,7 @@ from scrapy.crawler import CrawlerProcess
 
 from . import email_alerts
 from .ai import AIClient, AIUnavailable
-from .config import load_config, load_env_file
+from .config import load_config, load_env_file, project_home
 from .ingest import ingest
 from .logging_setup import setup_logging
 from .scrapy_ext import build_settings
@@ -145,9 +145,14 @@ def run_spiders(plan: list[tuple], settings: dict) -> dict:
             res[key] = stats.get(f"jobtracker/{key}", 0)
         res["errors"] = stats.get("jobtracker/errors", 0)
         got_something = stats.get("jobtracker/seen", 0) > 0
+        res["seen"] = stats.get("jobtracker/seen", 0)
         if res["status"] == "ok" and res["errors"]:
             res["status"] = "partial" if got_something else "failed"
-            res["detail"] = "see log for the failed requests"
+            res["detail"] = stats.get("jobtracker/error_detail") or "see log for the failed requests"
+        skip_reason = stats.get("jobtracker/skip_reason")
+        if skip_reason and res["status"] == "ok" and not got_something:
+            res["status"] = "skipped"
+            res["detail"] = skip_reason
         blocked = stats.get("jobtracker/robots_blocked", 0)
         refused = stats.get("jobtracker/access_refused", 0)
         if blocked and res["status"] == "ok" and not got_something:
@@ -314,6 +319,26 @@ def run_browser_phase(cfg: dict, store: Store, pending_render: list[dict], pendi
     return res
 
 
+def sync_nextcloud(cfg: dict, store: Store, upload=None) -> dict | None:
+    """Write an Excel copy next to the CSV and upload both to the user's Nextcloud, if configured."""
+    from . import exports, nextcloud
+
+    settings = nextcloud.settings_from_env()
+    if settings is None:
+        return None
+    res = _blank()
+    try:
+        xlsx = Path(cfg["paths"]["csv"]).with_suffix(".xlsx")
+        xlsx.write_bytes(exports.to_xlsx(store.list_jobs()))
+        remote = (upload or nextcloud.upload)([cfg["paths"]["csv"], str(xlsx)], settings)
+        res["detail"] = "copied to Nextcloud: " + ", ".join(remote)
+        logger.info("files copied to Nextcloud", extra={"source": "nextcloud", "files": remote})
+    except Exception as exc:  # noqa: BLE001 - a sync problem must never fail the run
+        res.update(status="failed", errors=1, detail=f"Nextcloud copy failed: {exc}")
+        logger.error("Nextcloud copy failed", extra={"source": "nextcloud", "error": str(exc)})
+    return res
+
+
 def build_plan(cfg: dict, wanted: set[str], companies: list[dict], pending_ai: list,
                pending_render: list | None = None) -> tuple[list, dict]:
     """Return the spiders to run plus results for sources that have nothing to run."""
@@ -401,6 +426,9 @@ def run(cfg: dict, only: set[str] | None = None, plan_override: list | None = No
             if name in METHODS:
                 result["method"] = METHODS[name]
         rows = store.export_csv(cfg["paths"]["csv"])
+        sync = sync_nextcloud(cfg, store)
+        if sync is not None:
+            results["nextcloud_sync"] = sync
         summary = {"profile": cfg["profile"].get("name"), "field": cfg["profile"].get("field"), "rows": rows, "by_status": store.counts_by_status(), "ai_calls": ai.calls_made,
                    "seconds": round(time.time() - started, 1), "sources": results}
         if pool_stats and "career_pages" in results:
@@ -428,8 +456,8 @@ def run_all_profiles(directory: str, extra_args: list[str]) -> int:
     One profile failing does not stop the others. Returns 1 if any profile failed.
     """
     files = profile_files(directory)
-    if not files and Path("config.yaml").exists():
-        files = [Path("config.yaml")]
+    if not files and (project_home() / "config.yaml").exists():
+        files = [project_home() / "config.yaml"]
     if not files:
         print("No profiles found. Create one with: python -m jobtracker.init", file=sys.stderr)
         return 2
@@ -447,17 +475,18 @@ def main(argv=None) -> int:
     parser.add_argument("--profile", help="profile name, short for --config profiles/<name>.yaml")
     parser.add_argument("--all-profiles", action="store_true",
                         help="run every profile in --profiles-dir, one after the other")
-    parser.add_argument("--profiles-dir", default="profiles")
+    parser.add_argument("--profiles-dir", default=None, help="default: profiles/ in the project folder")
     parser.add_argument("--only", nargs="+", choices=ALL_SOURCES, help="run only these sources")
     parser.add_argument("--export-only", action="store_true",
                         help="apply CSV edits and rewrite the CSV without contacting any source")
     args = parser.parse_args(argv)
-    load_env_file()            # credentials from .env in the project folder
+    load_env_file(project_home() / ".env")      # credentials, whatever folder the terminal is in
+    args.profiles_dir = args.profiles_dir or str(project_home() / "profiles")
     if args.all_profiles:
         extra = (["--only", *args.only] if args.only else []) + (["--export-only"] if args.export_only else [])
         return run_all_profiles(args.profiles_dir, extra)
     config_path = args.config or (
-        str(Path(args.profiles_dir) / f"{args.profile}.yaml") if args.profile else "config.yaml")
+        str(Path(args.profiles_dir) / f"{args.profile}.yaml") if args.profile else str(project_home() / "config.yaml"))
     cfg = load_config(config_path)
     setup_logging(cfg["paths"]["log"], cfg["logging"]["level"], cfg["logging"]["scrapy_level"])
     if args.export_only:

@@ -2,10 +2,17 @@
 {% block title %}Settings · Job Tracker{% endblock %}
 {% block mainclass %}narrow{% endblock %}
 {% block content %}
+<div class="card">
+  <h1>Your account</h1>
+  <p class="sub" style="margin:0"><b>{{ user.email }}</b></p>
+  <p class="small">Ways to sign in to this account: {{ sign_in_methods | join(", ") or "none" }}.
+    Signing in with Google or GitHub under the same verified email address opens this same account,
+    with all your jobs and settings.</p>
+</div>
 <form method="post" action="/settings">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="card">
-    <h1>Job alert mailbox</h1>
+    <h2>Job alert mailbox</h2>
     <p class="sub">LinkedIn, Indeed and Xing do not allow programs to search their sites. They do send
       job alerts by email. Create daily alerts on those sites, then connect the mailbox that receives them.
       It is opened read-only. Use an app password, not your main password.</p>
@@ -18,6 +25,22 @@
            placeholder="{{ 'saved, leave empty to keep it' if has_password else '' }}">
     <p class="help">Stored encrypted. {% if has_password %}
       <label style="display:inline;font-weight:400"><input type="checkbox" name="forget_mailbox" value="1"> Remove this mailbox</label>{% endif %}</p>
+  </div>
+  <div class="card">
+    <h2>Copy results to Nextcloud</h2>
+    <p class="sub">After every search, your tracker is saved as <b>jobs.csv</b> and <b>jobs.xlsx</b> in a folder of
+      your own Nextcloud. Create an app password in Nextcloud under Settings, Security. Leave empty to switch it off.</p>
+    <label for="nc_url">Nextcloud address</label>
+    <input id="nc_url" type="text" name="nc_url" value="{{ nc_url }}" placeholder="http://100.64.146.94:8080">
+    <label for="nc_user">Nextcloud user name</label>
+    <input id="nc_user" type="text" name="nc_user" value="{{ nc_user }}" autocomplete="off">
+    <label for="nc_password">App password</label>
+    <input id="nc_password" type="password" name="nc_password" autocomplete="new-password"
+           placeholder="{{ 'saved, leave empty to keep it' if has_nc_password else '' }}">
+    <label for="nc_folder">Folder</label>
+    <input id="nc_folder" type="text" name="nc_folder" value="{{ nc_folder }}">
+    <p class="help">Stored encrypted. The copy goes one way: change statuses here, not in the Nextcloud file.
+      {% if has_nc_password %}<label style="display:inline;font-weight:400"><input type="checkbox" name="forget_nextcloud" value="1"> Remove this Nextcloud connection</label>{% endif %}</p>
   </div>
   <div class="card">
     <h2>LinkedIn guest search</h2>

@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 
 from .ai import AIClient
-from .config import DEFAULTS, load_config, load_env_file
+from .config import DEFAULTS, load_config, load_env_file, project_home
 from .presets import FIELDS, LEVELS, build_profile
 
 HEADER = """\
@@ -123,10 +123,11 @@ def main(argv=None) -> int:
     parser.add_argument("--keywords", help="comma separated title keywords (added to the preset)")
     parser.add_argument("--search-terms", help="comma separated search phrases for LinkedIn, Xing, boards")
     parser.add_argument("--describe", help="plain description, the AI model turns it into keywords")
-    parser.add_argument("--dir", default="profiles", help="folder for profile files")
+    parser.add_argument("--dir", default=None, help="folder for profile files (default: profiles/ in the project)")
     parser.add_argument("--force", action="store_true", help="overwrite an existing profile")
     args = parser.parse_args(argv)
-    load_env_file()
+    load_env_file(project_home() / ".env")
+    args.dir = args.dir or str(project_home() / "profiles")
     try:
         profile = from_flags(args) if args.name and (args.field or args.keywords or args.describe) \
             else interactive(args)

@@ -42,9 +42,10 @@ GREENHOUSE = {"jobs": [
 ]}
 
 
-ARBEITSAGENTUR = {"maxErgebnisse": 1, "stellenangebote": [
-    {"titel": "Werkstudent (m/w/d) Data Engineering", "refnr": "10001-1002716922-S", "arbeitgeber": "Beispiel AG",
-     "aktuelleVeroeffentlichungsdatum": "2026-11-12", "arbeitsort": {"ort": "Erfurt", "region": "Thüringen"}}]}
+ARBEITSAGENTUR = {"maxErgebnisse": 1, "ergebnisliste": [
+    {"stellenangebotsTitel": "Werkstudent (m/w/d) Data Engineering", "referenznummer": "10001-1002716922-S",
+     "firma": "Beispiel AG", "veroeffentlichungszeitraum": {"von": "2026-11-12"},
+     "stellenlokationen": [{"adresse": {"ort": "Erfurt", "region": "Thüringen", "plz": "99084"}}]}]}
 
 
 class FakeNetwork:
@@ -62,6 +63,8 @@ class FakeNetwork:
             return TextResponse(url, status=404, request=request)
         if url == "https://refuse.example.com/jobs?q=x":
             return HtmlResponse(url, status=403, request=request)      # bot protection
+        if url.startswith("https://rest.arbeitsagentur.de/") and "/pc/v4/" in url:
+            return TextResponse(url, status=403, body=b" ", request=request)   # retired path, as live
         if url.startswith("https://rest.arbeitsagentur.de/"):
             assert request.headers.get("X-API-Key") == b"jobboerse-jobsuche"
             FakeNetwork.ba_queries.append(url.split("?", 1)[1])
@@ -179,7 +182,7 @@ def test_full_run_with_failing_sources(cfg, caplog):
     assert "https://www.arbeitnow.com/robots.txt" not in FakeNetwork.requested
     assert "https://boom.example.com/robots.txt" in FakeNetwork.requested
     assert results["arbeitnow"] == {"status": "ok", "new": 1, "duplicate": 1, "filtered": 1,
-                                    "errors": 0, "detail": "", "method": "C (official API)"}
+                                    "errors": 0, "detail": "", "method": "C (official API)", "seen": 3}
     assert results["recheck"]["status"] == "ok"
 
     # A robots.txt refusal is reported as blocked, and the page is never requested.
@@ -193,6 +196,7 @@ def test_full_run_with_failing_sources(cfg, caplog):
     # Bundesagentur: one request per query, all of Germany (no "wo"), with the API key header.
     assert results["arbeitsagentur"]["status"] == "ok" and results["arbeitsagentur"]["new"] == 1
     assert len(FakeNetwork.ba_queries) == 4 and all("wo=" not in q for q in FakeNetwork.ba_queries)
+    assert not any("/pc/v4/" in u for u in FakeNetwork.requested)          # current v6 path only
     assert {q.split("angebotsart=")[1].split("&")[0] for q in FakeNetwork.ba_queries} == {"1", "34"}
 
     # Career pages: one company answered, one did not. Both visits are recorded for the rotation.

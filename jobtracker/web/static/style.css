@@ -41,3 +41,6 @@ tr.gone td { color:var(--muted); } tr.gone a { color:var(--muted); text-decorati
 .empty { text-align:center; color:var(--muted); padding:30px 10px; }
 .downloads { display:flex; gap:8px; flex-wrap:wrap; }
 @media (max-width:640px) { th.hide,td.hide { display:none; } main { padding:0 12px; } }
+.btn.sso { display:flex; align-items:center; justify-content:center; gap:10px; background:#fff; color:#1f1f1f;
+           border:1px solid #747775; font-weight:500; min-height:42px; }
+.btn.sso:hover { background:#f2f4f7; } .btn.sso img { display:block; }

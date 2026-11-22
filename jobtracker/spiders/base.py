@@ -16,6 +16,15 @@ REFUSED = {401, 403, 429, 451, 999}   # login wall, bot protection, rate limit
 class SourceSpider(scrapy.Spider):
     """One isolated source. Subclasses yield plain dicts built with self.posting()."""
 
+    # True: HTTP 401/403/429 means the site refuses automated access (reported as blocked).
+    # False: the source is a documented API, so such an answer means it changed (reported as failed).
+    refusal_is_blocked = True
+
+    def skip(self, reason: str) -> None:
+        """Record why this source collected nothing on purpose (shown on the dashboard)."""
+        self.crawler.stats.set_value("jobtracker/skip_reason", reason)
+        self.log.info(reason, extra={"source": self.name})
+
     def __init__(self, cfg: dict, pending_ai: list | None = None, pending_render: list | None = None, **kwargs):
         super().__init__(**kwargs)
         self.cfg = cfg
@@ -68,6 +77,13 @@ class SourceSpider(scrapy.Spider):
                                  extra={"source": self.name, "url": getattr(request, "url", "")})
             return
         status = getattr(getattr(failure.value, "response", None), "status", None)
+        if failure.check(HttpError) and status in REFUSED and not self.refusal_is_blocked:
+            self.crawler.stats.inc_value("jobtracker/errors")
+            self.crawler.stats.set_value("jobtracker/error_detail",
+                                         f"the API answered HTTP {status}, the endpoint may have changed")
+            self.log.error("API request refused, the endpoint may have changed", extra={
+                "source": self.name, "url": getattr(request, "url", ""), "http_status": status})
+            return
         if failure.check(HttpError) and status in REFUSED:
             # The site answered, but refuses automated requests. Nothing is worked around.
             self.crawler.stats.inc_value("jobtracker/access_refused")

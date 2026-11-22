@@ -272,3 +272,35 @@ def test_daily_schedule_time():
     assert seconds("04:00", datetime(2026, 11, 14, 3, 0)) == 3600
     assert seconds("04:00", datetime(2026, 11, 14, 4, 0)) == 86400
     assert seconds("04:00", datetime(2026, 11, 14, 20, 30)) == 7.5 * 3600
+
+
+def test_default_home_is_the_project_folder_not_the_terminal_folder(tmp_path, monkeypatch):
+    monkeypatch.delenv("JOBTRACKER_HOME", raising=False)
+    monkeypatch.setenv("JOBTRACKER_SECRET_KEY", "s")
+    monkeypatch.chdir(tmp_path)                                         # start from some other folder
+    captured = {}
+    monkeypatch.setattr(app_module, "UserDB", lambda path, key: captured.setdefault("db", path) and UserDB(
+        tmp_path / "app.db", key))
+    app = create_app(start_scheduler=False)
+    app.state.users.close()
+    assert captured["db"] == app_module.PROJECT_DIR / "data" / "app.db"
+    assert (app_module.PROJECT_DIR / "jobtracker").is_dir()
+
+
+def test_password_account_and_sso_land_in_the_same_account(home, monkeypatch):
+    async def fake_identity(oauth, provider, request):
+        return {"subject": "g-1", "email": "deepak@example.com", "name": "Deepak", "email_verified": True}
+
+    monkeypatch.setattr(app_module, "fetch_identity", fake_identity)
+    first = client_for(home)
+    signup(first, "deepak@example.com")
+    save_profile(first)
+    seed_jobs(home, 1, [("https://example.com/j/1", "Werkstudent KI")])
+    later = client_for(home)                                            # another day, another browser
+    assert later.get("/auth/google/callback").headers["location"] == "/dashboard"
+    assert "Werkstudent KI" in later.get("/dashboard").text
+    page = later.get("/settings").text
+    assert "Email and password, Google" in page
+    users = UserDB(home / "data" / "app.db", "test-secret")
+    assert users.all_ids() == [1]
+    users.close()

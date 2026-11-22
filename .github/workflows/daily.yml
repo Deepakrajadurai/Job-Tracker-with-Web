@@ -1,10 +1,11 @@
 name: Daily job search
 
+# Only for running the collector on GitHub's machines WITHOUT the home server.
+# The home server runs the daily search itself, so this workflow is manual now.
+# To use it instead of the server, add back:
+#   schedule:
+#     - cron: "0 3 * * *"     # GitHub cron is UTC. 04:00 Berlin = 03:00 UTC in winter, 02:00 in summer
 on:
-  schedule:
-    # GitHub cron is always UTC. 04:00 in Berlin is 03:00 UTC in winter (CET)
-    # and 02:00 UTC in summer (CEST). Change the hour to match your local time.
-    - cron: "0 4 * * *"
   workflow_dispatch: {}
 
 permissions:

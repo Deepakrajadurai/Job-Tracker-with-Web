@@ -14,6 +14,9 @@ logger = logging.getLogger("jobtracker.web.runner")
 
 IMAP_VARS = {"imap_host": "JOBTRACKER_IMAP_HOST", "imap_user": "JOBTRACKER_IMAP_USER",
              "imap_password": "JOBTRACKER_IMAP_PASSWORD"}
+NEXTCLOUD_VARS = {"nc_url": "JOBTRACKER_NEXTCLOUD_URL", "nc_user": "JOBTRACKER_NEXTCLOUD_USER",
+                  "nc_password": "JOBTRACKER_NEXTCLOUD_PASSWORD", "nc_folder": "JOBTRACKER_NEXTCLOUD_FOLDER"}
+USER_VARS = {**IMAP_VARS, **NEXTCLOUD_VARS}
 MIN_MINUTES_BETWEEN_RUNS = 30
 
 
@@ -28,9 +31,9 @@ class Runner:
         return self.home / "profiles" / f"user{user_id}.yaml"
 
     def env_for(self, user_id: int) -> dict:
-        """Each run only sees the mailbox of its own user, never the server's or another user's."""
+        """Each run only sees the mailbox and Nextcloud of its own user, never the server's or another user's."""
         env = dict(os.environ)
-        for key, var in IMAP_VARS.items():
+        for key, var in USER_VARS.items():
             value = self.users.get_setting(user_id, key)
             if value:
                 env[var] = value
@@ -80,6 +83,12 @@ class Runner:
         """Run every user's profile once a day at `clock` (server local time), one after the other."""
         while True:
             await asyncio.sleep(self.seconds_until(clock))
+            try:
+                from ..backup import backup_databases
+
+                await asyncio.to_thread(backup_databases, self.home / "data")
+            except Exception:  # noqa: BLE001 - a failed backup must not stop the searches
+                logger.exception("daily backup failed")
             for user_id in self.users.all_ids():
                 try:
                     if self.start(user_id, force=True) == "started":

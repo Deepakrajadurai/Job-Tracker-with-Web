@@ -145,3 +145,80 @@ def test_plan_covers_new_sources_and_keeps_restricted_ones_opt_in(cfg):
     cfg["sources"]["xing"]["public_search"] = True
     assert {"linkedin", "indeed", "xing"} <= set(names())
     assert set(METHODS) == set(ALL_SOURCES)
+
+
+def test_bundesagentur_live_v6_response_and_retired_v4_setting(cfg):
+    from unittest.mock import MagicMock
+
+    from jobtracker.spiders.arbeitsagentur import ArbeitsagenturSpider
+
+    jobs = parse_arbeitsagentur({"maxErgebnisse": 1, "ergebnisliste": [{
+        "stellenangebotsTitel": "Praktikant (m/w/d) KI", "referenznummer": "12265-439-S", "firma": "Thüringen GmbH",
+        "veroeffentlichungszeitraum": {"von": "2026-11-20"},
+        "stellenlokationen": [{"adresse": {"ort": "Jena", "region": "Thüringen", "plz": "07743"}}]}]})
+    assert jobs == [{"link": "https://www.arbeitsagentur.de/jobsuche/jobdetail/12265-439-S",
+                     "position": "Praktikant (m/w/d) KI", "date": "2026-11-20", "company": "Thüringen GmbH",
+                     "location": "Jena, Thüringen"}]
+    cfg["sources"]["arbeitsagentur"]["api_version"] = "v4"           # an old profile still saying v4
+    spider = ArbeitsagenturSpider(cfg)
+    spider.crawler = MagicMock()
+    assert "/pc/v6/jobs?" in spider.url("Werkstudent", "", 1, 1)
+
+
+def test_api_403_is_a_failure_not_a_refusal(cfg):
+    from unittest.mock import MagicMock
+
+    from scrapy import Request
+    from scrapy.http import Response
+    from scrapy.spidermiddlewares.httperror import HttpError
+    from twisted.python.failure import Failure
+
+    from jobtracker.spiders.arbeitsagentur import ArbeitsagenturSpider
+    from jobtracker.spiders.xing import XingSpider
+
+    stats = {}
+    crawler = MagicMock()
+    crawler.stats.inc_value.side_effect = lambda k, *a: stats.__setitem__(k, stats.get(k, 0) + 1)
+    crawler.stats.set_value.side_effect = stats.__setitem__
+    request = Request("https://example.com/x")
+    failure = Failure(HttpError(Response(request.url, status=403, request=request)))
+    failure.request = request
+    for spider_cls in (ArbeitsagenturSpider, XingSpider):
+        spider = spider_cls(cfg)
+        spider.crawler = crawler
+        spider.on_error(failure)
+    assert stats["jobtracker/errors"] == 1 and "endpoint may have changed" in stats["jobtracker/error_detail"]
+    assert stats["jobtracker/access_refused"] == 1                    # Xing: a real refusal
+
+
+def test_dashboard_explains_every_zero(tmp_path, monkeypatch):
+    import json
+    import re
+
+    from fastapi.testclient import TestClient
+
+    from jobtracker.web.app import create_app
+
+    monkeypatch.setenv("JOBTRACKER_SECRET_KEY", "s")
+    client = TestClient(create_app(tmp_path, start_scheduler=False), follow_redirects=False)
+    token = lambda p: re.search(r'name="csrf" value="([^"]+)"', client.get(p).text).group(1)   # noqa: E731
+    client.post("/signup", data={"csrf": token("/signup"), "email": "a@example.com", "password": "a long password"})
+    client.post("/profile", data={"csrf": token("/profile"), "field": "software_ai", "levels": ["working_student"],
+                                  "locations": "Germany"})
+    blank = {"new": 0, "duplicate": 0, "filtered": 0, "errors": 0, "detail": ""}
+    (tmp_path / "data" / "user1").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "data" / "user1" / "last_run.json").write_text(json.dumps({
+        "finished_at": "2026-11-22T17:33:00+00:00", "sources": {
+            "arbeitsagentur": {**blank, "status": "failed", "errors": 4,
+                               "detail": "the API answered HTTP 403, the endpoint may have changed"},
+            "jobicy": {**blank, "status": "skipped", "detail": "Jobicy allows one request per hour. Asked 12 minutes "
+                                                              "ago, so it runs again in 49 minutes."},
+            "career_pages": {**blank, "status": "ok", "filtered": 3026, "companies_crawled": 10,
+                             "pool": {"pool": 10, "target": 50, "shortfall": "no new companies from AI (no key)"}},
+            "recheck": {**blank, "status": "ok", "checked": 27, "marked_gone": 2}}}), encoding="utf-8")
+    page = client.get("/dashboard").text
+    assert "endpoint may have changed" in page and ">Failed<" in page
+    assert ">Skipped<" in page and "runs again in 49 minutes" in page
+    assert "3026 postings were found but none matched your search filters" in page
+    assert "Target is 50 per run. Not reached because: no new companies from AI (no key)." in page
+    assert "27 saved links checked, 2 marked as no longer available." in page

@@ -34,7 +34,7 @@ DEFAULTS: dict[str, Any] = {
         "arbeitnow": {"enabled": True, "max_pages": 5, "filter_location": False},
         "arbeitsagentur": {
             "enabled": True,
-            "api_version": "v4",
+            "api_version": "v6",
             "max_pages": 2,
             "page_size": 50,
             "max_age_days": 7,
@@ -214,3 +214,10 @@ def load_env_file(path: str | Path = ".env") -> int:
             os.environ[key] = value
             count += 1
     return count
+
+
+def project_home() -> Path:
+    """Where profiles, data and .env live: JOBTRACKER_HOME, else the project folder."""
+    import os
+
+    return Path(os.environ.get("JOBTRACKER_HOME") or Path(__file__).resolve().parents[1])

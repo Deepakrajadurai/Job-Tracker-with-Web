@@ -29,10 +29,12 @@ from .users import UserDB
 
 logger = logging.getLogger("jobtracker.web")
 HERE = Path(__file__).parent
+PROJECT_DIR = HERE.parents[1]
 
 SOURCES = [("arbeitnow", "Arbeitnow"), ("arbeitsagentur", "Bundesagentur für Arbeit"), ("jobicy", "Jobicy (remote)"),
            ("working_student", "Working student"), ("career_pages", "Career pages"),
            ("browser_rendering", "Browser rendering"), ("ai_extraction", "AI extraction"),
+           ("nextcloud_sync", "Copy to Nextcloud"),
            ("linkedin", "LinkedIn"), ("indeed", "Indeed"), ("xing", "Xing"), ("recheck", "Re-check of saved links")]
 HINTS = {
     "linkedin": "LinkedIn forbids automated access. Connect a job alert mailbox in Settings, "
@@ -56,13 +58,32 @@ def _secret_key(home: Path) -> str:
 
 
 def create_app(home: str | Path | None = None, start_scheduler: bool | None = None) -> FastAPI:
-    home = Path(home or os.environ.get("JOBTRACKER_HOME", ".")).resolve()
+    # Always the project folder (or JOBTRACKER_HOME), never the folder the terminal happens to be in,
+    # so every start finds the same accounts and jobs.
+    home = Path(home or os.environ.get("JOBTRACKER_HOME") or PROJECT_DIR).resolve()
     load_env_file(home / ".env")
     secret = _secret_key(home)
     users = UserDB(home / "data" / "app.db", secret)
     runner = Runner(home, users)
     oauth, providers = build_oauth()
+    missing = [name for key, name in (("google", "Google (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)"),
+                                      ("github", "GitHub (GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET)"),
+                                      ("oidc", "OpenID Connect (OIDC_DISCOVERY_URL, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET)"))
+               if key not in providers]
+    print(f"Accounts database: {home / 'data' / 'app.db'}", flush=True)
+    print(f"Each user's jobs:  {home / 'data'}{os.sep}user<id>{os.sep}jobs.db", flush=True)
+    print(f"Single sign-on buttons shown: {', '.join(providers.values()) or 'none'}", flush=True)
+    if missing:
+        print("Not configured, add to .env and restart to show them: " + "; ".join(missing), flush=True)
     templates = Jinja2Templates(directory=str(HERE / "templates"))
+    # Official provider logos are not shipped. Put the files from the providers' brand pages into
+    # jobtracker/web/static/logos/ (google.svg, github.svg, or .png) and they appear on the buttons.
+    logos = {}
+    for key in ("google", "github", "oidc"):
+        for ext in ("svg", "png"):
+            if (HERE / "static" / "logos" / f"{key}.{ext}").is_file():
+                logos[key] = f"/static/logos/{key}.{ext}"
+                break
     failures: dict[str, list[float]] = {}
     if start_scheduler is None:
         start_scheduler = os.environ.get("JOBTRACKER_SCHEDULER", "1") != "0"
@@ -87,7 +108,7 @@ def create_app(home: str | Path | None = None, start_scheduler: bool | None = No
         request.session.setdefault("csrf", secrets.token_urlsafe(24))
         user = users.by_id(request.session["uid"]) if request.session.get("uid") else None
         return templates.TemplateResponse(request, template, {
-            "user": user, "csrf": request.session["csrf"], "providers": providers,
+            "user": user, "csrf": request.session["csrf"], "providers": providers, "logos": logos,
             "flash": request.session.pop("flash", None), **context}, status_code=status_code)
 
     def redirect(request: Request, path: str, flash: str | None = None):
@@ -129,7 +150,7 @@ def create_app(home: str | Path | None = None, start_scheduler: bool | None = No
 
     @app.get("/healthz", include_in_schema=False)
     def healthz():
-        return {"ok": True}
+        return {"ok": True, "version": os.environ.get("JOBTRACKER_VERSION", "dev")}
 
     @app.get("/signup", response_class=HTMLResponse)
     def signup_form(request: Request):
@@ -233,6 +254,43 @@ def create_app(home: str | Path | None = None, start_scheduler: bool | None = No
         except (OSError, ValueError):
             return None
 
+    def badge(key: str, result: dict) -> str:
+        if result["status"] == "skipped":
+            return "Not set up" if key in HINTS else "Skipped"
+        return {"ok": "Completed", "partial": "Partial", "failed": "Failed",
+                "blocked": "Not allowed"}.get(result["status"], result["status"])
+
+    def explain(key: str, result: dict) -> str:
+        """One plain sentence per source, so a 0 is never left unexplained."""
+        status, detail = result["status"], result.get("detail", "")
+        new, known, filtered = result.get("new", 0), result.get("duplicate", 0), result.get("filtered", 0)
+        if status in ("skipped", "blocked") and key in HINTS:
+            return HINTS[key]
+        parts = []
+        if key == "career_pages":
+            pool = result.get("pool") or {}
+            crawled = result.get("companies_crawled", 0)
+            parts.append(f"{crawled} companies read in this run, {pool.get('pool', crawled)} in the weekly rotation.")
+            if pool.get("shortfall"):
+                parts.append(f"Target is {pool.get('target', 50)} per run. Not reached because: {pool['shortfall']}.")
+        if key == "recheck":
+            gone = result.get("marked_gone", 0)
+            return (f"{result.get('checked', 0)} saved links checked, {gone} marked as no longer available."
+                    + (f" {detail}" if detail else ""))
+        if detail and not (key == "career_pages" and status == "ok"):
+            parts.append(detail[0].upper() + detail[1:] + ("" if detail.endswith(".") else "."))
+        if status in ("ok", "partial") and new == 0:
+            if filtered:
+                parts.append(f"{filtered} postings were found but none matched your search filters "
+                             "(title keywords, level or location). You can widen them under My search.")
+            elif known:
+                parts.append("Everything found is already in your list.")
+            elif not detail:
+                parts.append("The source returned no postings for your search this time.")
+        elif filtered:
+            parts.append(f"{filtered} more did not match your filters.")
+        return " ".join(parts)
+
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard(request: Request, user=Depends(current_user), status: str = "", q: str = ""):
         store, cfg = open_store(user)
@@ -248,14 +306,8 @@ def create_app(home: str | Path | None = None, start_scheduler: bool | None = No
             result = (run or {}).get("sources", {}).get(key)
             if result is None:
                 continue
-            note = result.get("detail", "")
-            if result["status"] in ("skipped", "blocked", "failed") and key in HINTS:
-                note = HINTS[key]
-            if key == "career_pages" and result.get("pool"):
-                pool = result["pool"]
-                note = (f"{result.get('companies_crawled', 0)} companies read in this run, "
-                        f"{pool['pool']} in the weekly rotation. " + note).strip()
-            rows.append({"label": label, **result, "note": note})
+            rows.append({"label": label, **result, "note": explain(key, result),
+                         "badge": badge(key, result)})
         return render(request, "dashboard.html", jobs=jobs, counts=counts, total=total, statuses=VALID_STATUSES,
                       status=status, q=q, run=run, sources=rows, cfg=cfg, running=runner.is_running(user["id"]))
 
@@ -308,7 +360,15 @@ def create_app(home: str | Path | None = None, start_scheduler: bool | None = No
     @app.get("/settings", response_class=HTMLResponse)
     def settings_form(request: Request, user=Depends(current_user)):
         uid = user["id"]
-        return render(request, "settings.html", imap_host=users.get_setting(uid, "imap_host"),
+        methods = (["Email and password"] if user["password_hash"] else []) + [
+            {"google": "Google", "github": "GitHub", "oidc": os.environ.get("OIDC_NAME", "Single sign-on")}.get(p, p)
+            for p in users.providers_for(uid)]
+        return render(request, "settings.html", sign_in_methods=methods,
+                      nc_url=users.get_setting(uid, "nc_url") or os.environ.get("JOBTRACKER_NEXTCLOUD_DEFAULT_URL", ""),
+                      nc_user=users.get_setting(uid, "nc_user"),
+                      nc_folder=users.get_setting(uid, "nc_folder") or "Job Tracker",
+                      has_nc_password=bool(users.get_setting(uid, "nc_password")),
+                      imap_host=users.get_setting(uid, "imap_host"),
                       imap_user=users.get_setting(uid, "imap_user"),
                       has_password=bool(users.get_setting(uid, "imap_password")),
                       linkedin_guest=users.get_setting(uid, "linkedin_guest") == "1")
@@ -316,8 +376,21 @@ def create_app(home: str | Path | None = None, start_scheduler: bool | None = No
     @app.post("/settings", dependencies=[Depends(csrf)])
     def settings_save(request: Request, user=Depends(current_user), imap_host: str = Form(""),
                       imap_user: str = Form(""), imap_password: str = Form(""),
-                      linkedin_guest: str = Form(""), forget_mailbox: str = Form("")):
+                      linkedin_guest: str = Form(""), forget_mailbox: str = Form(""),
+                      nc_url: str = Form(""), nc_user: str = Form(""), nc_password: str = Form(""),
+                      nc_folder: str = Form("Job Tracker"), forget_nextcloud: str = Form("")):
         uid = user["id"]
+        if forget_nextcloud:
+            for key in ("nc_url", "nc_user", "nc_password", "nc_folder"):
+                users.set_setting(uid, key, "")
+        else:
+            if nc_url.strip() and not nc_url.strip().startswith(("http://", "https://")):
+                return redirect(request, "/settings", "The Nextcloud address must start with http:// or https://")
+            users.set_setting(uid, "nc_url", nc_url.strip().rstrip("/")[:300])
+            users.set_setting(uid, "nc_user", nc_user.strip()[:200])
+            users.set_setting(uid, "nc_folder", nc_folder.strip().strip("/")[:200])
+            if nc_password:
+                users.set_setting(uid, "nc_password", nc_password)
         if forget_mailbox:
             for key in ("imap_host", "imap_user", "imap_password"):
                 users.set_setting(uid, key, "")

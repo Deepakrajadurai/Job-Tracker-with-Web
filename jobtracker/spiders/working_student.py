@@ -18,8 +18,8 @@ class WorkingStudentSpider(ArbeitnowSpider):
         for board in self.scfg.get("boards") or []:
             template = board["url"]
             if "{query}" in template or "{location}" in template:
-                urls = {template.replace("{query}", quote_plus(q)).replace("{location}", quote_plus(l))
-                        for q in queries for l in locations}
+                urls = {template.replace("{query}", quote_plus(query)).replace("{location}", quote_plus(place))
+                        for query in queries for place in locations}
             else:
                 urls = {template}
             for url in sorted(urls):

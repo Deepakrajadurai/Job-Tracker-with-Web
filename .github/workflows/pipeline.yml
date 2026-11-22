@@ -1,0 +1,47 @@
+# CI/CD pipeline
+#   every push and pull request: lint, tests, Docker build check (GitHub's own machines)
+#   push to main:                deploy to home-server through the self-hosted runner there
+name: Pipeline
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -r requirements.txt ruff
+      - name: Lint
+        run: ruff check jobtracker tests
+      - name: Tests
+        run: python -m pytest -q
+      - name: Docker build check
+        run: docker build --build-arg APP_VERSION=${{ github.sha }} -t jobtracker:ci .
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, home-server]
+    timeout-minutes: 20
+    concurrency:
+      group: deploy-home-server
+      cancel-in-progress: false
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        env:
+          APP_VERSION: ${{ github.sha }}
+        run: bash scripts/ci-deploy.sh
