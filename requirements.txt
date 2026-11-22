@@ -6,7 +6,7 @@ python-dateutil>=2.9
 requests>=2.31
 # Web interface
 fastapi>=0.115
-uvicorn>=0.30
+uvicorn>=0.54.0
 Jinja2>=3.1
 python-multipart>=0.0.9
 itsdangerous>=2.1
