@@ -1,6 +1,6 @@
 # Job Tracker web app and collector in one image.
 #   docker compose up -d --build
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
