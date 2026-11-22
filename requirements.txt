@@ -2,7 +2,7 @@
 # Collector
 Scrapy>=2.20,<3
 PyYAML>=6.0
-python-dateutil>=2.9
+python-dateutil>=4.0.0
 requests>=2.31
 # Web interface
 fastapi>=0.115
